@@ -120,17 +120,17 @@ struct Board {
 		moves.clear();
 		auto add_moves = [&moves, this](char board) {
 			auto &b = miniBoards[boards[board]];
-			for (auto m : b.moves) {
-				if (m == NO_MOVE)
-					break;
-				moves.push_back({ board, m });
-			}
+			for (int i = 0; i < b.moves_count; ++i)
+				moves.push_back({ board, b.moves[i] });
 		};
 		if (availableMiniBoard != ANY_MINIBOARD)
 			add_moves(availableMiniBoard);
 		else
-			for (auto mini : miniBoards[superBoard].moves)
-				add_moves(mini);
+		{
+			auto& super = miniBoards[superBoard];
+			for (int i = 0; i < super.moves_count; ++i)
+				add_moves(super.moves[i]);
+		}
 	}
 
 	Move random_move(int rand) const {
@@ -141,7 +141,8 @@ struct Board {
 		auto board = availableMiniBoard;
 		if (board == ANY_MINIBOARD) {
 			auto &super = miniBoards[superBoard];
-			for (auto &mini_id : super.moves) {
+			for (int i = 0; i < super.moves_count; ++i) {
+				auto mini_id = super.moves[i];
 				auto &mini = miniBoards[boards[mini_id]];
 				if (mini.moves_count > rand) {
 					board = mini_id;
