@@ -202,7 +202,7 @@ void swap(char &side) { side ^= O ^ X; }
 int single_playout(Board b, char side) {
 	auto res = IN_PROGRESS;
 	while (res == IN_PROGRESS) {
-		int r = 7; // rand();
+		int r = rand();
 		res = b.apply_move(b.random_move(r), side);
 		swap(side);
 	}
@@ -270,7 +270,9 @@ Move chooseMove(const Board& b)
 			score = 0;
 		else if (res == DRAW)
 			score = N / 2;
-		else score = -playout(board_copy, N, O);
+		else score = N - playout(board_copy, N, O);
+
+		cerr << (int)m.board << "-" << (int)m.pos << " score " << score << endl;
 
 		if (score > best_score)
 		{
@@ -281,6 +283,27 @@ Move chooseMove(const Board& b)
 	}
 
 	return best;
+}
+
+string get_row(short id, int r)
+{
+	auto b = miniBoards[id];
+	return{ &b.state[r * 3], 3 };
+}
+
+void print(const Board& b)
+{
+	for (int i : {0, 1, 2})
+	{
+		for (int j : {0, 1, 2})
+		{
+			cerr
+				<< get_row(b.boards[i * 3], j) << "|"
+				<< get_row(b.boards[i * 3 + 1], j) << "|"
+				<< get_row(b.boards[i * 3 + 2], j) << endl;
+		}
+		if (i < 3) cerr << "---+---+---" << endl;
+	}
 }
 
 int main() {
@@ -305,7 +328,11 @@ int main() {
 
 		Move my_move = chooseMove(b);
 
+		print(b);
+		cerr << "move to " << (int)my_move.board << "-" << (int)my_move.pos << endl;
 		b.apply_move(my_move, X);
+		print(b);
+
 		auto res = get_row_and_col(my_move);
 		cout << res.first << " " << res.second << endl;
 	}
