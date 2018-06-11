@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <functional>
+#include <memory>
 #include <array>
 #include <iostream>
 #include <numeric>
@@ -6,8 +8,13 @@
 #include <vector>
 #include <cmath>
 #include <assert.h>
+#include <chrono>
 
 using namespace std;
+
+using std::chrono::steady_clock;
+using std::chrono::duration_cast;
+using std::chrono::milliseconds;
 
 /**
 *
@@ -61,6 +68,7 @@ struct Move {
 	char board;
 	char pos;
 	bool operator==(Move m)const { return board == m.board&&pos == m.pos; }
+	friend ostream& operator<<(ostream& out, Move m);
 };
 
 void swap(char &side) { side ^= O ^ X; }
@@ -73,6 +81,7 @@ short make_mini_board(short base, char pos, char side) {
 	if (b.side == NOT_CALCULATED) {
 		b = miniBoards[base];
 		// update board state
+		assert(b.state[pos] == '.');
 		b.state[pos] = side;
 
 		// update count of X/O
@@ -94,10 +103,16 @@ short make_mini_board(short base, char pos, char side) {
 			int sum = 0;
 			for (auto &i : row)
 				sum += b.state[i];
-
-			if (sum == side * 3) {
+		
+			if (sum == X * 3) {
 				// winning pattern detected
-				b.side = side;
+				b.side = X;
+				b.moves_count = 0;
+				break;
+			}			
+			if (sum == O * 3) {
+				// winning pattern detected
+				b.side = O;
 				b.moves_count = 0;
 				break;
 			}
@@ -105,6 +120,9 @@ short make_mini_board(short base, char pos, char side) {
 	}
 	return id;
 }
+
+struct Board;
+void print(const Board& b);
 
 struct Board {
 	array<short, 9> boards;
@@ -165,9 +183,8 @@ struct Board {
 				rand -= mini.moves_count;
 			}
 		}
-		Move m = { board, miniBoards[boards[board]].moves[rand] };
-		auto new_id = make_mini_board(boards[m.board], m.pos, O);
-
+		
+		assert(board != ANY_MINIBOARD);
 		return{ board, miniBoards[boards[board]].moves[rand] };
 	}
 
@@ -293,6 +310,11 @@ pair<int, int> get_row_and_col(Move m) {
 	return{ m.board, m.pos };
 }
 
+ostream& operator<<(ostream& out, Move m){
+	auto res = get_row_and_col(m);
+	return out << "(" << res.first << " " << res.second << ")";
+}
+
 void skip_valid_actions() {
 	int validActionCount;
 	cin >> validActionCount;
@@ -359,7 +381,7 @@ void print(const Board& b)
 				<< get_row(b.boards[i * 3 + 1], j) << "|"
 				<< get_row(b.boards[i * 3 + 2], j) << endl;
 		}
-		if (i < 3) cerr << "---+---+---" << endl;
+		if (i < 2) cerr << "---+---+---" << endl;
 	}
 }
 
@@ -445,25 +467,29 @@ Node* chose_best_node(Node* root)
 	return best_node;
 }
 
-void playout_leaf(Node* node, int n)
+GameStat playout_leaf(Node* node, int n)
 {
+	GameStat res;
 	if (!has_moves(node->board))
 	{
 		const int BIG_NUM = 100;
 		if (node->board.availableMiniBoard == X)
 		{
-			node->stat.X_wins += BIG_NUM * n;
+			res.X_wins = BIG_NUM * n;
+			node->stat.X_wins += res.X_wins;
 		}
 		else
 		{
 			// count draw as a win for O
-			node->stat.O_wins += BIG_NUM * n;
+			res.O_wins = BIG_NUM * n;
+			node->stat.O_wins += res.O_wins;
 		}
 	}
 	else
 	{
-		node->stat = playout(node->board, n);
+		res = node->stat = playout(node->board, n);
 	}
+	return res;
 }
 
 void backpropagate(Node* node, GameStat stat)
@@ -497,15 +523,20 @@ GameStat generate_and_playout_children_for_empty_board(Node* node, int playouts)
 		n->board = node->board;
 		auto& b = n->board;
 		b.apply_move(m);
-		playout_leaf(n, playouts);
-		result.X_wins += n->stat.X_wins;
-		result.O_wins += n->stat.O_wins;
+		auto stat = playout_leaf(n, playouts);
+		result.X_wins += stat.X_wins;
+		result.O_wins += stat.O_wins;
 	}
 	return result;
 }
 
 GameStat generate_and_playout_children(Node* node, int playouts)
 {
+	if (!has_moves(node->board))
+	{
+		return playout_leaf(node, playouts);
+	}
+
 	GameStat result;
 
 	auto moves = node->board.legal_moves();
@@ -522,9 +553,9 @@ GameStat generate_and_playout_children(Node* node, int playouts)
 		n->board = node->board;
 		auto& b = n->board;
 		b.apply_move(m);
-		playout_leaf(n, playouts);
-		result.X_wins += n->stat.X_wins;
-		result.O_wins += n->stat.O_wins;
+		auto stat = playout_leaf(n, playouts);
+		result.X_wins += stat.X_wins;
+		result.O_wins += stat.O_wins;
 	}
 	return result;
 }
@@ -564,6 +595,86 @@ Node* find_node_by_move(Node* root, Move m)
 	return root;
 }
 
+void read_serialized_game(Board& b)
+{
+	vector<Move> Xs, Os;
+	string line;
+	for (int super_r : {0, 1, 2})
+	{
+		if(super_r) cin >> line;
+		for (int r : {0, 1, 2})
+		{
+			cin >> line;
+			for (int super_c : {0, 1, 2})
+				for (int c : {0, 1, 2})
+				{
+					int i = super_c * 4 + c;
+					Move m{ super_r * 3 + super_c, r * 3 + c };
+					if (line[i] == 'X') Xs.push_back(m);
+					if (line[i] == 'O') Os.push_back(m);
+				}
+		}
+	}
+	assert(Xs.size() == Os.size() || (Xs.size() - 1) == Os.size() );
+	while (!Os.empty())
+	{
+		b.apply_move(Xs.back());
+		Xs.pop_back();
+		b.apply_move(Os.back());
+		Os.pop_back();
+	}
+	if (!Xs.empty())
+	{
+		b.apply_move(Xs.back());
+		Xs.pop_back();
+	}
+	int n;
+	cin >> n;
+	b.availableMiniBoard = n;
+}
+
+void dump_stat(string msg, const GameStat& s)
+{
+	cerr << msg << " X:" << s.X_wins << " / O:" << s.O_wins;
+	auto sum = s.X_wins + s.O_wins;
+	int diff = s.X_wins - s.O_wins;
+	if (diff == 0) cerr << " X==O\n";
+	else if (diff > 0) cerr << " X by " << diff << " (" << 100.0*diff / sum << "%)\n";
+	else if (diff < 0) cerr << " O by " << -diff << " (" << 100.0*-diff / sum << "%)\n";
+}
+
+void print_best_moves(const Node* root, int n)
+{
+	vector<pair<double, const Node*>> moves;
+
+	auto side = root->board.nextMoveSide;
+	for (int i = 0; i < root->children_size; ++i) {
+		auto node = root->first + i;
+		auto val = childValue(node, side);
+		moves.emplace_back(val, node);
+	}
+
+	sort(moves.begin(), moves.end());
+	reverse(moves.begin(), moves.end());
+
+	if (moves.size() > n)
+		moves.resize(n);
+
+	for (auto& m : moves)
+		cerr << m.first*100.0 << "% " << m.second->move << " ",
+		dump_stat("",m.second->stat);
+}
+
+struct TicTacToe2{
+	virtual bool init(int seed, int time_limit_ms){ return false; };
+	virtual bool set(int big, int small, char symbol){ return false; }
+	virtual std::pair<int, int> move(int big, int small) = 0;
+};
+
+class Player : public ::TicTacToe2{
+	virtual std::pair<int, int> move(int big, int small) {
+		return{ -1, -1 };
+};
 
 int main() {
 	vector<vector<int>> fields(10, vector<int>(10, 0));
@@ -577,6 +688,8 @@ int main() {
 		cin >> opponentRow >> opponentCol;
 		skip_valid_actions();
 
+		auto start = steady_clock::now();
+
 		if (root)
 		{
 			auto opponentMove = make_move(opponentRow, opponentCol);
@@ -588,27 +701,44 @@ int main() {
 			Board b;
 			initialBoard(b);
 
-			if (opponentCol != -1 && opponentRow != -1) {
+			if (opponentCol > -1 && opponentRow > -1) {
 				auto opponentMove = make_move(opponentRow, opponentCol);
 				b.apply_move(opponentMove);
 			}
-
+			if (opponentCol == -2 && opponentRow == -2) {
+				read_serialized_game(b);
+			}
 			root = make_root_node(b);
 
-			if (opponentCol != -1 && opponentRow != -1) {
+			if (opponentCol == -1 && opponentRow == -1) {
 				playout_empty_board(root);
 			}
 		}
 
-		cerr << "node has " << (root->stat.O_wins + root->stat.X_wins) << " plays\n";
+		dump_stat("input", root->stat);
 
-		for (int i = 0; i < 10; ++i)
+		for (int i = 0; i < 10000; ++i)
 		{
+			auto end = steady_clock::now();
+			if (end - start > milliseconds(90))
+			{
+				cerr << "Used " << i << " iterations\n";
+				break;
+			}
 			travel_tree_and_playout(root);
 		}
 
+		dump_stat("--- root: ", root->stat);
+		print_best_moves(root, 6);
+
 		root = chose_best_node(root);
+		cerr << "--- Estimated ansvers:\n";
+		print_best_moves(root, 6);
+
 		root->parent = nullptr;
+
+		auto end = steady_clock::now();
+		cerr << "Time: " << duration_cast<milliseconds>(end - start).count() << " ms\n";
 
 		auto res = get_row_and_col(root->move);
 		cout << res.first << " " << res.second << endl;
