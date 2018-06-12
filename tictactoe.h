@@ -17,8 +17,8 @@ struct TicTacToe2{
 using TicTacToeFactory = std::function < std::shared_ptr<TicTacToe>() >;
 using TicTacToeFactory2 = std::function < std::shared_ptr<TicTacToe2>() >;
 
-extern TicTacToeFactory2 make_player1;
-extern TicTacToeFactory2 make_player2;
+extern TicTacToeFactory2 make_latest_player;
+extern TicTacToeFactory2 make_player_v_1_0;
 
 template<typename From, typename To>
 struct Converter : To

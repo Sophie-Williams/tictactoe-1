@@ -2,17 +2,15 @@
 
 #include "tictactoe.h"
 
-namespace app_01{
+namespace app_latest{
 #include "players/player.cpp"
 }
 
-namespace app_02{
-#include "players/player.cpp"
+namespace app_v_1_0{
+#include "players/player_v.1.0.cpp"
 }
 
-::app_01::Player pl;
-
-TicTacToeFactory2 make_player1 = convert([](){ return std::make_shared<::app_01::Player>(); });
-TicTacToeFactory2 make_player2 = convert([](){ return std::make_shared<::app_02::Player>(); });
+TicTacToeFactory2 make_latest_player = convert([](){ return std::make_shared<::app_latest::Player>(); });
+TicTacToeFactory2 make_player_v_1_0 = convert([](){ return std::make_shared<::app_v_1_0::Player>(); });
 
 
