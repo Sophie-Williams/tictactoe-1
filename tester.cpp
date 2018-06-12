@@ -3,11 +3,11 @@
 #include "tictactoe.h"
 
 namespace app_01{
-#include "player.cpp"
+#include "players/player.cpp"
 }
 
 namespace app_02{
-#include "player.cpp"
+#include "players/player.cpp"
 }
 
 ::app_01::Player pl;
