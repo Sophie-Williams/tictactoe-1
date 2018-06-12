@@ -172,7 +172,7 @@ struct Board {
 		int n = moves_count();
 		if (n == 0)
 			return{};
-        auto rand = uniform_int_distribution<int>(0, n)(rand_gen);
+        auto rand = uniform_int_distribution<int>(0, n - 1)(rand_gen);
 		auto board = availableMiniBoard;
 		if (board == ANY_MINIBOARD) {
 			auto &super = miniBoards[superBoard];
