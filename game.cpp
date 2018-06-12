@@ -268,7 +268,7 @@ public:
 		return miniBoards[board.boards[a]].state[b] == '.';
 	}
 	void apply_move(int a, int b) override{
-		board.apply_move({ a, b });
+		board.apply_move({(char)a, (char)b });
 	}
 	bool is_game_over() const override{
 		return !has_moves(board);

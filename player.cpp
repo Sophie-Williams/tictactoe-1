@@ -510,9 +510,9 @@ GameStat generate_and_playout_children_for_empty_board(Node* node, int playouts)
 		{ 0, 0 }, { 0, 1 }, { 0, 4 },
 		{ 1, 0 }, { 1, 1 }, { 1, 4 },
 		{ 4, 0 }, { 4, 1 }, { 4, 4 } };
-	auto next_node = allocate_nodes(moves.size());
+	auto next_node = allocate_nodes((short)moves.size());
 	node->first = next_node;
-	node->children_size = moves.size();
+	node->children_size = (short)moves.size();
 	const auto side = node->board.nextMoveSide;
 	for (auto m : moves)
 	{
@@ -540,9 +540,9 @@ GameStat generate_and_playout_children(Node* node, int playouts)
 	GameStat result;
 
 	auto moves = node->board.legal_moves();
-	auto next_node = allocate_nodes(moves.size());
+	auto next_node = allocate_nodes((short)moves.size());
 	node->first = next_node;
-	node->children_size = moves.size();
+	node->children_size = (short)moves.size();
 	const auto side = node->board.nextMoveSide;
 	for (auto m : moves)
 	{
@@ -609,7 +609,7 @@ void read_serialized_game(Board& b)
 				for (int c : {0, 1, 2})
 				{
 					int i = super_c * 4 + c;
-					Move m{ super_r * 3 + super_c, r * 3 + c };
+					Move m{(char)( super_r * 3 + super_c), (char)(r * 3 + c) };
 					if (line[i] == 'X') Xs.push_back(m);
 					if (line[i] == 'O') Os.push_back(m);
 				}
@@ -643,7 +643,7 @@ void dump_stat(string msg, const GameStat& s)
 	else if (diff < 0) cerr << " O by " << -diff << " (" << 100.0*-diff / sum << "%)\n";
 }
 
-void print_best_moves(const Node* root, int n)
+void print_best_moves(const Node* root, unsigned n)
 {
 	vector<pair<double, const Node*>> moves;
 
@@ -678,7 +678,7 @@ class Player : public ::TicTacToe2{
 
 		if (root)
 		{
-			root = find_node_by_move(root, { a, b});
+			root = find_node_by_move(root, { (char)a, (char)b});
 			root->parent = nullptr;
 		}
 		else
@@ -687,7 +687,7 @@ class Player : public ::TicTacToe2{
 			initialBoard(board);
 
 			if (a > -1 && b > -1) {
-				board.apply_move({ a, b });
+				board.apply_move({ (char)a, (char)b });
 			}
 			root = make_root_node(board);
 
