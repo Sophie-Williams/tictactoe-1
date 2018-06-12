@@ -259,8 +259,16 @@ struct Node
 	Move move;
 };
 
-vector<Node> nodes_pool(10 * 1000 * 1000);
+const int NODES_POOL_SIZE = 10 * 1000 * 1000;
+vector<Node> nodes_pool(NODES_POOL_SIZE);
 Node* nodes_pool_head = &nodes_pool.front();
+
+void reset_nodes_pool()
+{
+    nodes_pool.resize(0);
+    nodes_pool.resize(NODES_POOL_SIZE);
+    nodes_pool_head = &nodes_pool.front();
+}
 
 Node* allocate_nodes(short count)
 {
@@ -678,6 +686,7 @@ class Player : public ::TicTacToe2{
     virtual bool init(int seed, int limit_time_limit_ms) {
         this->time_limit = milliseconds(limit_time_limit_ms);
         rand.seed(seed);
+        reset_nodes_pool();
         return true; 
     };
 
