@@ -9,12 +9,15 @@
 #include <cmath>
 #include <assert.h>
 #include <chrono>
+#include <random>
 
 using namespace std;
 
 using std::chrono::steady_clock;
 using std::chrono::duration_cast;
 using std::chrono::milliseconds;
+
+using rand_gen_t = minstd_rand;
 
 /**
 *
@@ -165,11 +168,11 @@ struct Board {
 		return moves;
 	}
 
-	Move random_move(int rand) const {
+	Move random_move(rand_gen_t& rand_gen) const {
 		int n = moves_count();
 		if (n == 0)
 			return{};
-		rand %= n;
+        auto rand = uniform_int_distribution<int>(0, n)(rand_gen);
 		auto board = availableMiniBoard;
 		if (board == ANY_MINIBOARD) {
 			auto &super = miniBoards[superBoard];
@@ -267,20 +270,19 @@ Node* allocate_nodes(short count)
 	return res;
 }
 
-int single_playout(Board b) {
+int single_playout(Board b, rand_gen_t& rand) {
 	auto res = IN_PROGRESS;
 	while (res == IN_PROGRESS) {
-		int r = rand();
-		res = b.apply_move(b.random_move(r));
+		res = b.apply_move(b.random_move(rand));
 	}
 	return res;
 }
 
-GameStat playout(const Board& b, int n)
+GameStat playout(const Board& b, int n, rand_gen_t& rand)
 {
 	GameStat res;
 	while (n-- > 0)
-		if (single_playout(b) == X)
+		if (single_playout(b, rand) == X)
 			res.X_wins += 1;
 		else res.O_wins += 1;
 	return res;
@@ -325,7 +327,7 @@ void skip_valid_actions() {
 	}
 }
 
-Move chooseMove(const Board& b)
+Move chooseMove(const Board& b, rand_gen_t& rand)
 {
 	vector<Move> legal_moves;
 	b.legal_moves(legal_moves);
@@ -346,7 +348,7 @@ Move chooseMove(const Board& b)
 			score = N / 2;
 		else
 		{
-			auto stat = playout(board_copy, N);
+			auto stat = playout(board_copy, N, rand);
 			if (b.nextMoveSide == X) score = stat.X_wins;
 			else score = stat.O_wins;
 		}
@@ -467,7 +469,7 @@ Node* chose_best_node(Node* root)
 	return best_node;
 }
 
-GameStat playout_leaf(Node* node, int n)
+GameStat playout_leaf(Node* node, int n, rand_gen_t& rand)
 {
 	GameStat res;
 	if (!has_moves(node->board))
@@ -487,7 +489,7 @@ GameStat playout_leaf(Node* node, int n)
 	}
 	else
 	{
-		res = node->stat = playout(node->board, n);
+		res = node->stat = playout(node->board, n, rand);
 	}
 	return res;
 }
@@ -502,7 +504,7 @@ void backpropagate(Node* node, GameStat stat)
 	}
 }
 
-GameStat generate_and_playout_children_for_empty_board(Node* node, int playouts)
+GameStat generate_and_playout_children_for_empty_board(Node* node, int playouts, rand_gen_t& rand)
 {
 	GameStat result;
 
@@ -523,18 +525,18 @@ GameStat generate_and_playout_children_for_empty_board(Node* node, int playouts)
 		n->board = node->board;
 		auto& b = n->board;
 		b.apply_move(m);
-		auto stat = playout_leaf(n, playouts);
+		auto stat = playout_leaf(n, playouts, rand);
 		result.X_wins += stat.X_wins;
 		result.O_wins += stat.O_wins;
 	}
 	return result;
 }
 
-GameStat generate_and_playout_children(Node* node, int playouts)
+GameStat generate_and_playout_children(Node* node, int playouts, rand_gen_t& rand)
 {
 	if (!has_moves(node->board))
 	{
-		return playout_leaf(node, playouts);
+		return playout_leaf(node, playouts, rand);
 	}
 
 	GameStat result;
@@ -553,31 +555,31 @@ GameStat generate_and_playout_children(Node* node, int playouts)
 		n->board = node->board;
 		auto& b = n->board;
 		b.apply_move(m);
-		auto stat = playout_leaf(n, playouts);
+		auto stat = playout_leaf(n, playouts, rand);
 		result.X_wins += stat.X_wins;
 		result.O_wins += stat.O_wins;
 	}
 	return result;
 }
 
-void travel_tree_and_playout(Node* root)
+void travel_tree_and_playout(Node* root, rand_gen_t& rand)
 {
 	auto leaf = find_leaf_node(root);
-	auto stat = generate_and_playout_children(leaf, 10);
+	auto stat = generate_and_playout_children(leaf, 10, rand);
 	backpropagate(leaf, stat);
 }
 
-void playout_empty_board(Node* root)
+void playout_empty_board(Node* root, rand_gen_t& rand)
 {
-	auto stat = generate_and_playout_children_for_empty_board(root, 10);
+	auto stat = generate_and_playout_children_for_empty_board(root, 10, rand);
 	backpropagate(root, stat);
 }
 
-Node* find_node_by_move(Node* root, Move m)
+Node* find_node_by_move(Node* root, Move m, rand_gen_t& rand)
 {
 	if (root->children_size == 0)
 	{
-		generate_and_playout_children(root, 1);
+		generate_and_playout_children(root, 1, rand);
 	}
 	for (int i = 0; i < root->children_size; ++i)
 	{
@@ -672,13 +674,20 @@ struct TicTacToe2{
 };
 
 class Player : public ::TicTacToe2{
+
+    virtual bool init(int seed, int limit_time_limit_ms) {
+        this->time_limit = milliseconds(limit_time_limit_ms);
+        rand.seed(seed);
+        return true; 
+    };
+
 	virtual std::pair<int, int> move(int a, int b) {
 
 		auto start = steady_clock::now();
 
 		if (root)
 		{
-			root = find_node_by_move(root, { (char)a, (char)b});
+			root = find_node_by_move(root, { (char)a, (char)b}, rand);
 			root->parent = nullptr;
 		}
 		else
@@ -692,18 +701,18 @@ class Player : public ::TicTacToe2{
 			root = make_root_node(board);
 
 			if (a == -1 && b == -1) {
-				playout_empty_board(root);
+				playout_empty_board(root, rand);
 			}
 		}
 
 		for (int i = 0; i < 10000; ++i)
 		{
 			auto end = steady_clock::now();
-			if (end - start > milliseconds(90))
+			if (end - start > time_limit)
 			{
 				break;
 			}
-			travel_tree_and_playout(root);
+			travel_tree_and_playout(root, rand);
 		}
 
 		root = chose_best_node(root);
@@ -713,11 +722,16 @@ class Player : public ::TicTacToe2{
 	};
 
 	Node* root = nullptr;
+    milliseconds time_limit;
+    rand_gen_t rand;
 };
 
 int main()
 {
 	Node* root = nullptr;
+
+    rand_gen_t rand;
+    rand.seed(1);
 
 	// game loop
 	while (1) {
@@ -731,7 +745,7 @@ int main()
 		if (root)
 		{
 			auto opponentMove = make_move(opponentRow, opponentCol);
-			root = find_node_by_move(root, opponentMove);
+			root = find_node_by_move(root, opponentMove, rand);
 			root->parent = nullptr;
 		}
 		else
@@ -749,7 +763,7 @@ int main()
 			root = make_root_node(b);
 
 			if (opponentCol == -1 && opponentRow == -1) {
-				playout_empty_board(root);
+				playout_empty_board(root, rand);
 			}
 		}
 
@@ -763,7 +777,7 @@ int main()
 				cerr << "Used " << i << " iterations\n";
 				break;
 			}
-			travel_tree_and_playout(root);
+			travel_tree_and_playout(root, rand);
 		}
 
 		dump_stat("--- root: ", root->stat);
