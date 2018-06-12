@@ -672,13 +672,51 @@ struct TicTacToe2{
 };
 
 class Player : public ::TicTacToe2{
-	virtual std::pair<int, int> move(int big, int small) {
-		return{ -1, -1 };
+	virtual std::pair<int, int> move(int a, int b) {
+
+		auto start = steady_clock::now();
+
+		if (root)
+		{
+			root = find_node_by_move(root, { a, b});
+			root->parent = nullptr;
+		}
+		else
+		{
+			Board board;
+			initialBoard(board);
+
+			if (a > -1 && b > -1) {
+				board.apply_move({ a, b });
+			}
+			root = make_root_node(board);
+
+			if (a == -1 && b == -1) {
+				playout_empty_board(root);
+			}
+		}
+
+		for (int i = 0; i < 10000; ++i)
+		{
+			auto end = steady_clock::now();
+			if (end - start > milliseconds(90))
+			{
+				break;
+			}
+			travel_tree_and_playout(root);
+		}
+
+		root = chose_best_node(root);
+		root->parent = nullptr;
+
+		return{ root->move.board, root->move.pos };
+	};
+
+	Node* root = nullptr;
 };
 
-int main() {
-	vector<vector<int>> fields(10, vector<int>(10, 0));
-
+int main()
+{
 	Node* root = nullptr;
 
 	// game loop
@@ -744,3 +782,4 @@ int main() {
 		cout << res.first << " " << res.second << endl;
 	}
 }
+

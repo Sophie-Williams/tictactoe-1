@@ -276,6 +276,25 @@ public:
 	char get_winner() const override{
 		return board.availableMiniBoard;
 	}
+	void print_board() const override{
+
+		auto row = [](short id, int r) {
+			return string{ &miniBoards[id].state[r * 3], 3 };
+		};
+
+		auto& b = board;
+		for (int i : {0, 1, 2})
+		{
+			for (int j : {0, 1, 2})
+			{
+				cout
+					<< row(b.boards[i * 3], j) << "|"
+					<< row(b.boards[i * 3 + 1], j) << "|"
+					<< row(b.boards[i * 3 + 2], j) << endl;
+			}
+			if (i < 2) cerr << "---+---+---" << endl;
+		}
+	}
 
 	Board board;
 };
